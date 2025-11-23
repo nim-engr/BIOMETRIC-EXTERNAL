@@ -8,17 +8,28 @@ return new class extends Migration {
 
     public function up()
     {
-        Schema::create('biometric_logs', function (Blueprint $table) {
-            $table->id();
-            $table->string('pin'); // biometric number
-            $table->dateTime('log_time');
-            $table->string('verify_mode')->nullable();
-            $table->string('in_out_mode')->nullable();
-            $table->string('work_code')->nullable();
-            $table->string('reserved')->nullable();
-            $table->timestamps();
-        });
-    }
+    Schema::create('biometric_logs', function (Blueprint $table) {
+        $table->id();
+
+        // FK to employees table
+        $table->foreignId('employee_id')
+              ->nullable()
+              ->constrained('employees')
+              ->onDelete('cascade');
+
+        // ZKTeco CSV raw fields
+        $table->string('pin');              // biometric number
+        $table->dateTime('log_time');       // timestamp
+        $table->integer('log_month');       // Added: month category
+        $table->integer('log_year');        // Added: year category
+        $table->string('verify_mode')->nullable();
+        $table->string('in_out_mode')->nullable();
+        $table->string('work_code')->nullable();
+        $table->string('reserved')->nullable();
+
+        $table->timestamps();
+    });
+}
 
     public function down(): void
     {

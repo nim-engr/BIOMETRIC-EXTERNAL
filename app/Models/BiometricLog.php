@@ -10,6 +10,8 @@ class BiometricLog extends Model
         'employee_id',
         'pin',
         'log_time',
+        'log_month',
+        'log_year',
         'verify_mode',
         'in_out_mode',
         'work_code',

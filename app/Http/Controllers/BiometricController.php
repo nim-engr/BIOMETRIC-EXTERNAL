@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Employee;
 use App\Models\BiometricLog;
+use Barryvdh\DomPDF\Facade\Pdf;
+
 
 class BiometricController extends Controller
 {
@@ -17,10 +19,13 @@ class BiometricController extends Controller
     return view('biometric.upload', compact('logs'));
     }
 
+
     public function store(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|mimes:csv,txt|max:4096',
+            'log_month' => 'required|integer|min:1|max:12',
+            'log_year'  => 'required|integer|min:2000|max:2100',
+            'csv_file'  => 'required|mimes:csv,txt|max:4096',
         ]);
 
         $file = $request->file('csv_file');
@@ -46,6 +51,7 @@ class BiometricController extends Controller
             $w1        = $parts[4] ?? null;
             $w2        = $parts[5] ?? null;
 
+            // Assign employee via PIN
             $employee = Employee::where('biometric_number', $pin)->first();
 
             if (!$employee) {
@@ -57,6 +63,8 @@ class BiometricController extends Controller
                 'employee_id' => $employee->id,
                 'pin'         => $pin,
                 'log_time'    => $timestamp,
+                'log_month'   => $request->log_month,
+                'log_year'    => $request->log_year,
                 'verify_mode' => $verify,
                 'in_out_mode' => $inout,
                 'work_code'   => $w1,
@@ -66,8 +74,83 @@ class BiometricController extends Controller
             $imported++;
         }
 
-        return redirect()->route('biometric.upload')
-                 ->with('success', "Upload complete. Imported: $imported | Skipped: $skipped");
-
+        return redirect()
+            ->route('biometric.upload')
+            ->with('success', "Biometric upload complete. Imported: $imported | Skipped: $skipped");
     }
+
+    public function deleteByMonthYear(Request $request)
+    {
+        $request->validate([
+            'delete_month' => 'required|integer|min:1|max:12',
+            'delete_year'  => 'required|integer|min:2000|max:2100',
+        ]);
+
+        $month = $request->delete_month;
+        $year  = $request->delete_year;
+
+        // Count logs before deletion
+        $count = \App\Models\BiometricLog::where('log_month', $month)
+                    ->where('log_year', $year)
+                    ->count();
+
+        if ($count === 0) {
+            return back()->with('success', "No logs found for $month/$year.");
+        }
+
+        // Perform deletion
+        \App\Models\BiometricLog::where('log_month', $month)
+            ->where('log_year', $year)
+            ->delete();
+
+        return back()->with('success', "Successfully deleted $count log(s) for $month/$year.");
+    }
+    
+    
+    public function selectForPdf()
+    {
+        $employees = \App\Models\Employee::orderBy('family_name')
+                                    ->orderBy('first_name')
+                                    ->get();
+
+        return view('biometric.select', compact('employees'));
+    }
+
+    public function exportEmployeePdf(Request $request)
+    {
+        $request->validate([
+            'full_name' => 'required|string',
+            'month'     => 'required|integer|min:1|max:12',
+            'year'      => 'required|integer|min:2000|max:2100',
+        ]);
+
+        // Split full name into first + last
+        $nameParts = explode('|', $request->full_name); // safer delimiter
+        $firstName = $nameParts[0];
+        $familyName = $nameParts[1];
+
+        // Find employee using both first_name and family_name
+        $employee = \App\Models\Employee::where('first_name', $firstName)
+                    ->where('family_name', $familyName)
+                    ->firstOrFail();
+
+        // Now fetch logs
+        $logs = \App\Models\BiometricLog::where('employee_id', $employee->id)
+                    ->where('log_month', $request->month)
+                    ->where('log_year', $request->year)
+                    ->orderBy('log_time')
+                    ->get();
+
+        $monthName = date('F', mktime(0, 0, 0, $request->month, 1));
+
+        $pdf = Pdf::loadView('biometric.employee_pdf', [
+            'employee' => $employee,
+            'logs'     => $logs,
+            'month'    => $monthName,
+            'year'     => $request->year,
+        ])->setPaper('A4', 'portrait');
+
+        return $pdf->download("{$employee->full_name}_{$monthName}_{$request->year}_logs.pdf");
+    }
+
 }

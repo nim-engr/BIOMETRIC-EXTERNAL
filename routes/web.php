@@ -25,6 +25,15 @@ Route::prefix('employees')->name('employee.')->group(function () {
 // Biometric Upload
 Route::get('/upload-biometric', [BiometricController::class, 'index'])->name('biometric.upload');
 Route::post('/upload-biometric', [BiometricController::class, 'store'])->name('biometric.store');
+Route::delete('/biometric/delete', [BiometricController::class, 'deleteByMonthYear'])->name('biometric.delete');
+
+// Filter + Export logs for ONE employee
+Route::get('/biometric/select', [BiometricController::class, 'selectForPdf'])->name('biometric.select');
+Route::get('/biometric/export/pdf', [BiometricController::class, 'exportEmployeePdf'])->name('biometric.export.pdf');
+
 
 // DTR Module
 Route::get('/generate-dtr', [DtrController::class, 'index'])->name('dtr.generate');
+Route::post('/generate-dtr', [DtrController::class, 'generate'])->name('dtr.generate.run');
+Route::get('/generate-dtr/pdf', [DtrController::class, 'exportPdf'])->name('dtr.generate.pdf');
+
